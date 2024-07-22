@@ -1,22 +1,27 @@
 import { createApp } from "vue";
-import { createPinia } from "pinia";
-import { VueQueryPlugin } from "@tanstack/vue-query";
+import { VueQueryPlugin, QueryClient } from "@tanstack/vue-query";
 import clickOutside from "./directives/clickOutside"; // Adjust the import path according to your project structure
 
 import "./style.css";
 import App from "./App.vue";
-import { createMemoryHistory, createRouter } from "vue-router";
-
-const pinia = createPinia();
+import { createRouter, createWebHistory } from "vue-router";
 
 const routes = [
-  { path: "/", component: () => import("./views/Home.vue") },
+  { path: "/", component: () => import("./views/HomeN.vue") },
   { path: "/about", component: () => import("./views/About.vue") },
 ];
 
 const router = createRouter({
-  history: createMemoryHistory(),
+  history: createWebHistory(),
   routes,
+});
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+    },
+  },
 });
 
 const app = createApp(App);
@@ -24,7 +29,6 @@ const app = createApp(App);
 app.directive("click-outside", clickOutside);
 
 app.use(router);
-app.use(pinia);
-app.use(VueQueryPlugin);
+app.use(VueQueryPlugin, { queryClient });
 
 app.mount("#app");

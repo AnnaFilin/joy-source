@@ -1,21 +1,16 @@
 import { useQuery } from "@tanstack/vue-query";
 import { supabase } from "../../supabase";
 
-// export function useDogParks() {
-//   const { data } = useQuery({
-//     queryKey: ["dogGardens"],
-//     queryFn: getDogParks,
-//   });
-//   // return useQuery(["dogGardens"], async () => {
-//   //   const { data, error } = await supabase.from("dogGardens").select("*");
-//   //   if (error) {
-//   //     throw new Error(error.message);
-//   //   }
-//   return data;
-//   // });
-// }
+export function useDogParks() {
+  const { data, isFetched } = useQuery({
+    queryKey: ["dogGardens"],
+    queryFn: getDogParks,
+  });
+  console.log("use dogs : data -> ", data, isFetched);
+  return { data, isFetched };
+}
 
-export async function getDogParks() {
+async function getDogParks() {
   const { data, error } = await supabase.from("dogGardens").select("*");
   if (error) {
     throw new Error(error.message);

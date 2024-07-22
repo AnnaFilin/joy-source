@@ -16,7 +16,7 @@
 import { defineEmits } from "vue";
 
 const props = defineProps(["value", "maxRating", "totalRates"]);
-
+// console.log("props->", props.value);
 const emit = defineEmits(["update-rating"]);
 
 const setRating = (star) => {

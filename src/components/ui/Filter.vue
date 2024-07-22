@@ -19,62 +19,32 @@
 
 <script setup>
 import Button from "@/components/ui/Button.vue";
-import { toRaw } from "vue";
 import { useRouter, useRoute } from "vue-router";
+import { ref } from "vue";
 
 const router = useRouter();
-const route = useRoute();
+
+const currFilter = ref({
+  layer: ["playgrounds"],
+  radius: 3,
+});
 
 const updateFilter = (key, value) => {
-  console.log("key", key, "val,", value);
-  console.log("router", toRaw(router).currentRoute); //.currentRoute.value.query);
-  console.log("route", toRaw(route));
-  //   let currQuery = toRaw(router).currentRoute.value.query;
+  if (key === "radius") currFilter.value.radius = value;
+  else {
+    if (!currFilter.value.layer.includes(value))
+      currFilter.value.layer = [...currFilter.value.layer, value];
+    else
+      currFilter.value.layer = currFilter.value.layer.filter(
+        (type) => type !== value
+      );
+  }
 
-  let currQuery = toRaw(route).query; //.currentRoute.value.query;
-  console.log("curr", currQuery);
-  const query = { ...currQuery, [key]: value };
-  console.log("query ", query);
-  console.log("cdcdc", toRaw(route), query, query);
-  router.push({
-    ...toRaw(route),
-    query: {
-      ...toRaw(route).query,
-      ...query,
-      query,
-    },
-  });
+  const query = currFilter.value;
+  console.log("query : ", query);
+
+  router.push({ path: "/", query });
 };
-
-// const router = useRouter()
-
-// function pushWithQuery(query) {
-//   router.push({
-//     name: 'search',
-//     query: {
-//       ...route.query,
-//       ...query,
-//     },
-//   })
-// }
-// const selectedLayer = ref("");
-// // const locationType = useRouteQuery("locationType");
-// // const store = useDataStore();
-
-// const toggleLayer = (layer) => {
-//   // switch (layer) {
-//   //   case 'playgrounds':
-//   //     console.log('pl')
-//   selectedLayer.value = layer;
-//   // }
-
-//   // store.toggleLayerVisibility(layer);
-// };
-// watch(() => {});
-
-// const filterLocations = (radius) => {
-//   store.filterLocations(radius);
-// };
 </script>
 
 <style lang="scss" scoped></style>

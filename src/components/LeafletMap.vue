@@ -16,9 +16,7 @@
 </template>
 
 <script setup>
-import { useQuery } from "@tanstack/vue-query";
-
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, watch, reactive, computed } from "vue";
 import "leaflet.locatecontrol"; // Import plugin
 import "leaflet.locatecontrol/dist/L.Control.Locate.min.css"; // Import style
 import "leaflet/dist/leaflet.css";
@@ -27,31 +25,124 @@ import { toRaw } from "vue";
 import { useDataStore } from "../store";
 import LocationDetails from "./LocationDetails.vue";
 
-import { getPlaygrounds } from "../hooks/usePlaygrounds";
-import { getDogParks } from "../hooks/useDogParks";
-import { useBikeParkings } from "../hooks/useBikeParkings";
-// const loaded = ref(false);
-
-const {
-  data: dogParksData,
-  isFetched: isFetchedDogParks,
-  error: dogParksError,
-} = useQuery({
-  queryKey: ["dogGardens"],
-  queryFn: getDogParks,
+const currentLocation = ref({});
+const emit = defineEmits(["update-location"]);
+const props = defineProps([
+  "dataPlaygrounds",
+  "dataDogParks",
+  "dataBikeParkings",
+]);
+const { dataPlaygrounds, dataDogParks, dataBikeParkings } = props;
+const visibleLayers = ref({
+  dogParks: false,
+  playgrounds: false,
+  bikeParkings: false,
 });
 
-// console.log("data pl:", dataPlaygrounds);
-const {
-  data: playgroundsData,
-  isFetched: isFetchedPlaygrounds,
-  error: playgroundsError,
-} = useQuery({
-  queryKey: ["playgrounds"],
-  queryFn: getPlaygrounds,
-});
+// watch(displayedLocations, (val) => {
+//   console.log("displayedLocations, ", toRaw(displayedLocations));
+// });
 
-const { data: bikeParkingsData, isFetched: isFetchedBikeP } = useBikeParkings();
+// watch(currentLocation, (val) => {
+
+// });
+// watch(props, (val) => {
+//   console.log("curr loc ", currentLocation.lon, currentLocation.lat);
+//   if (!currentLocation.lat || !currentLocation.lon) return;
+//   console.log("layer : ", val);
+//   const { layer, radius } = val;
+//   console.log("layer, radius ", layer, radius);
+
+//   if (radius) filterRadius(radius, currentLocation);
+
+//   if (layer) {
+//     console.log("laaaa", visibleLayers.value, visibleLayers.value[layer]);
+
+//     visibleLayers.value[layer] = !visibleLayers.value[layer];
+//     console.log("");
+//   }
+
+//   switch (layer) {
+//     case "playgrounds":
+//       dataPlaygrounds.value = toRaw(playgroundsData._object).data;
+//       dataPlaygrounds.value.forEach((point) => {
+//         const marker = createMarker(point, "playground", "מגרש משחקים").addTo(
+//           playgroundsLayer.value
+//         );
+
+//         marker.on("popupopen", () => {
+//           document
+//             .querySelector(`.details-button[data-id="${point.id}"]`)
+//             .addEventListener("click", () => openDetails(point, "playground"));
+//         });
+//         return marker;
+//       });
+//       initialMap.value.addLayer(playgroundsLayer.value);
+//       break;
+//     case "dogParks":
+//       dataDogGardens.value = toRaw(dogParksData._object).data;
+//       console.log(val, dogParksData);
+//       dataDogGardens.value.forEach((point) => {
+//         console.log(point.name);
+//         const marker = createMarker(point, "dogPark", "פארק כלבים").addTo(
+//           dogParksLayer.value
+//         );
+
+//         marker.on("popupopen", () => {
+//           document
+//             .querySelector(`.details-button[data-id="${point.id}"]`)
+//             .addEventListener("click", () => openDetails(point, "dogPark"));
+//         });
+//         return marker;
+//       });
+
+//       initialMap.value.addLayer(dogParksLayer.value);
+//       break;
+//     case "bikeParkings":
+//       dataBikeParkings.value = toRaw(bikeParkingsData._object).data;
+//       dataBikeParkings.value.forEach((point) => {
+//         const marker = createMarker(
+//           point,
+//           "bikeParkings",
+//           "מתקן אופניים"
+//         ).addTo(bikeParkingsLayer.value);
+
+//         marker.on("popupopen", () => {
+//           document
+//             .querySelector(`.details-button[data-id="${point.id}"]`)
+//             .addEventListener("click", () =>
+//               openDetails(point, "bikeParkings")
+//             );
+//         });
+//         return marker;
+//       });
+//       initialMap.value.addLayer(bikeParkingsLayer.value);
+
+//       break;
+//     default:
+//       return;
+//   }
+// });
+
+// watch(
+//   visibleLayers,
+//   (val) => {
+//     console.log("val,oldVal", toRaw(val));
+//     updateVisibility(playgroundsLayer.value, toRaw(val).playgrounds);
+//     updateVisibility(dogParksLayer.value, toRaw(val).dogParks);
+//     updateVisibility(bikeParkingsLayer.value, toRaw(val).bikeParkings);
+//   },
+//   { deep: true }
+// );
+
+const updateVisibility = (layer, isVisible) => {
+  console.log("layer, isVisible", layer, isVisible);
+  if (isVisible) {
+    initialMap.value.addLayer(layer);
+  } else {
+    initialMap.value.removeLayer(layer);
+  }
+};
 
 const initialMap = ref(null);
 
@@ -63,12 +154,8 @@ const showDetails = ref(false);
 const details = ref({});
 const locationType = ref("");
 
-const store = useDataStore();
-
-const playgroundIcon = ref("");
-
 const openDetails = (item, type) => {
-  // console.log("open", item, type);
+  console.log("open", item, type);
   details.value = toRaw(item);
   locationType.value = type;
   showDetails.value = true;
@@ -84,10 +171,6 @@ const handleCloseDetails = () => {
   // }
 };
 
-const dataPlaygrounds = ref([]);
-const dataDogGardens = ref([]);
-const dataBikeParkings = ref([]);
-
 onMounted(() => {
   initialMap.value = L.map("map").locate({
     setView: true,
@@ -102,44 +185,40 @@ onMounted(() => {
 
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(function (position) {
-      const myLocation = {
-        lat: position.coords.latitude,
-        lon: position.coords.longitude,
-      };
+      currentLocation.lat = position.coords.latitude;
+      currentLocation.lon = position.coords.longitude;
 
-      store.setCurrentLocation(myLocation);
+      const myLocation = {
+        lat: currentLocation.lat,
+        lon: currentLocation.lon,
+      };
+      console.log("my location ", myLocation);
+      emit("update-location", myLocation);
       const myLocationMarker = L.marker([
-        store.currentLocation.lat,
-        store.currentLocation.lon,
+        position.coords.latitude,
+        position.coords.longitude,
       ]).addTo(initialMap.value);
     });
   }
-  // const { data } = playgroundsData;
-  // console.log("pl", toRaw(bikeParkingsData._object).data);
-  // console.log("location type", locationType.value);
-  // const dataPlaygrounds = toRaw(playgroundsData._object).data;
-  // console.log("data pl:", dataPlaygrounds);
-  // store.filteredPlaygrounds.forEach((point) => {
-  // playgroundsData.forEach((point) => {
-  //   createMarker(point, "playground")
-  //     .bindPopup(`<b>Playground</b><br>Name: ${point.Name}<br>`)
-  //     .addTo(playgroundsLayer.value);
-  // });
-  // store.filteredDogParks.forEach((point) => {
-  // dogParksData.forEach((point) => {
-  //   //   // console.log(point.name);
-  //   createMarker(point, "dogPark")
-  //     .bindPopup(`<b>Dog Park</b><br>Name: ${point.name}<br>`)
-  //     .addTo(dogParksLayer.value);
-  // });
-  // store.filteredBikeParkings.forEach((point) => {
-  //   createMarker(point, "bikeParkings")
-  //     .bindPopup(`<b>Bike Parking</b><br>Name: ${point.Address}<br>`)
-  //     .addTo(bikeParkingsLayer.value);
-  // });
+
+  const playgrounds = Array.from(dataPlaygrounds);
+
+  playgrounds.forEach((point) => {
+    const marker = createMarker(point, "playground", "מגרש משחקים").addTo(
+      playgroundsLayer.value
+    );
+    marker.on("popupopen", () => {
+      document
+        .querySelector(`.details-button[data-id="${point.id}"]`)
+        .addEventListener("click", () => openDetails(point, "playground"));
+    });
+    return marker;
+  });
+  initialMap.value.addLayer(playgroundsLayer.value);
 });
 
-watch(isFetchedDogParks, (val, oldVal) => {
+// watch(isFetchedDogParks, (val, oldVal) => {
+watch(visibleLayers.dogParks, (val, oldVal) => {
   console.log("watch dog parks val", val, oldVal);
 
   if (val) {
@@ -147,37 +226,40 @@ watch(isFetchedDogParks, (val, oldVal) => {
     console.log(val, dogParksData);
     dataDogGardens.value.forEach((point) => {
       console.log(point.name);
-      createMarker(point, "dogPark")
-        .bindPopup(`<b>Dog Park</b><br>Name: ${point.name}<br>`)
+      createMarker(point, "dogPark", "פארק כלבים")
+        // .bindPopup(`<b>Dog Park</b><br>Name: ${point.name}<br>`)
         .addTo(dogParksLayer.value);
     });
   }
   initialMap.value.addLayer(dogParksLayer.value);
 });
 
-watch(isFetchedPlaygrounds, (val) => {
-  // console.log("fetched playgrounds , ", playgroundsData);
+// watch(isFetchedPlaygrounds, (val) => {
+watch(visibleLayers.playgrounds, (val) => {
+  console.log("fetched playgrounds , ", playgroundsData);
   if (val) dataPlaygrounds.value = toRaw(playgroundsData._object).data;
   dataPlaygrounds.value.forEach((point) => {
-    createMarker(point, "playground")
-      .bindPopup(`<b>Playground</b><br>Name: ${point.Name}<br>`)
+    createMarker(point, "playground", "מגרש משחקים")
+      // .bindPopup(`<b>Playground</b><br>Name: ${point.name}<br>`)
       .addTo(playgroundsLayer.value);
   });
   initialMap.value.addLayer(playgroundsLayer.value);
 });
 
-watch(isFetchedBikeP, (val) => {
-  // console.log("fetched bikeP , ", bikeParkingsData);
+// watch(isFetchedBikeP, (val) => {
+watch(visibleLayers.value.bikeParkings, (val) => {
+  console.log("fetched bikeP , ", bikeParkingsData);
   if (val) dataBikeParkings.value = toRaw(bikeParkingsData._object).data;
   dataBikeParkings.value.forEach((point) => {
-    createMarker(point, "bikeParkings")
-      .bindPopup(`<b>Bike Parking</b><br>Name: ${point.Name}<br>`)
+    createMarker(point, "bikeParkings", "מתקן אופניים")
+      // .bindPopup(`<b>Bike Parking</b><br>Name: ${point.name}<br>`)
       .addTo(bikeParkingsLayer.value);
   });
   initialMap.value.addLayer(bikeParkingsLayer.value);
 });
 
 const updateLayer = (layer, data, label, type) => {
+  console.log("layer, data, label, type", layer, data, label, type);
   layer.clearLayers();
   data.forEach((point) => {
     console.log(point, type);
@@ -194,47 +276,22 @@ const updateLayer = (layer, data, label, type) => {
   }
 };
 
-const updateVisibility = (layer, isVisible) => {
-  if (isVisible) {
-    initialMap.value.addLayer(layer);
-  } else {
-    initialMap.value.removeLayer(layer);
-  }
-};
+// watch(
+//   () => store.filteredPlaygrounds,
+//   (newVal) => {
+//     updateLayer(playgroundsLayer.value, newVal, "Playground", "playground");
+//   }
+// );
 
-watch(
-  () => store.filteredPlaygrounds,
-  (newVal) => {
-    updateLayer(playgroundsLayer.value, newVal, "Playground", "playground");
-  }
-);
-watch(
-  () => store.filteredDogParks,
-  (newVal) => {
-    updateLayer(dogParksLayer.value, newVal, "Dog Park", "dogPark");
-  }
-);
-watch(
-  () => store.filteredBikeParkings,
-  (newVal) => {
-    updateLayer(
-      bikeParkingsLayer.value,
-      newVal,
-      "Bike Parking",
-      "bikeParkings"
-    );
-  }
-);
-
-watch(
-  () => store.layersVisibility,
-  (newVal) => {
-    updateVisibility(playgroundsLayer.value, newVal.playgrounds);
-    updateVisibility(dogParksLayer.value, newVal.dogParks);
-    updateVisibility(bikeParkingsLayer.value, newVal.bikeParkings);
-  },
-  { deep: true }
-);
+// watch(
+//   () => store.layersVisibility,
+//   (newVal) => {
+//     updateVisibility(playgroundsLayer.value, newVal.playgrounds);
+//     updateVisibility(dogParksLayer.value, newVal.dogParks);
+//     updateVisibility(bikeParkingsLayer.value, newVal.bikeParkings);
+//   },
+//   { deep: true }
+// );
 
 function svgToDataUrl(svg) {
   const encoded = encodeURIComponent(svg)
@@ -245,6 +302,7 @@ function svgToDataUrl(svg) {
 // // https://data.gov.il/api/3/action/datastore_search
 
 function createMarker(el, type, label) {
+  // console.log("el, type label : ", el, type, label);
   let markerOptions = {
     clickable: true,
     draggable: false,
@@ -260,14 +318,10 @@ function createMarker(el, type, label) {
   }
   if (type === "playground") {
     iconOptions.iconSize = [25, 20];
-    // console.log(playgroundIcon.value);
-    iconOptions.iconUrl = playgroundIcon.value;
-
     //vectr.com/editor/57ef0934-2acc-4a5c-b5df-393e2ae2b071
-    // iconUrl;
     iconOptions.className = " text-purple-500";
-    iconOptions.iconUrl = "/playground.jpg";
-    // https: console.log("ic", iconOptions.iconUrl);
+    iconOptions.iconUrl = "/playgarden.jpg";
+    // https://api.geoapify.com/v1/icon/?type=material&color=%23f38f39&icon=child&iconType=awesome&apiKey=YOUR_API_KEY
   }
   if (type === "bikeParkings") {
     iconOptions.iconUrl = "/bicycle.jpeg";
@@ -275,11 +329,36 @@ function createMarker(el, type, label) {
   }
   const customIcon = L.icon(iconOptions);
   markerOptions.icon = customIcon;
-  // console.log(markerOptions);
+  // console.log("markerOptions", markerOptions);
   return L.marker([toRaw(el).lat, toRaw(el).lon], markerOptions).bindPopup(
-    `<b>${label}</b><br>Name: ${el[tooltipKey]}<br>  <button class="details-button text-sm bg-seasalt p-2 border border-purple-300 rounded-md text-purple-500" data-id="${el.id}">More Details</button>`
+    `<b>${label}</b><br>Name: ${toRaw(el)[tooltipKey]}<br>  <button class="details-button text-sm bg-seasalt p-2 border border-purple-300 rounded-md text-purple-500" data-id="${el.id}">More Details</button>`
   );
 }
+
+// function filterRadius(radius, currLocation) {
+//   if (!currLocation.lat || !currLocation.lon) return;
+
+//   const currentLocation = L.latLng(currLocation.lat, currLocation.lon);
+
+//   filteredPlaygrounds.value = dataPlaygrounds.value.filter((point) => {
+//     // console.log("p", point);
+//     return (
+//       currentLocation.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
+//       radius * 1000
+//     );
+//   });
+
+//   filteredDogParks.value = dataDogGardens.value.filter(
+//     (point) =>
+//       currentLocation.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
+//       radius * 1000
+//   );
+//   filteredBikeParkings.value = dataBikeParkings.value.filter(
+//     (point) =>
+//       currentLocation.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
+//       radius * 1000
+//   );
+// }
 </script>
 
 <style scoped>

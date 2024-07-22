@@ -6,7 +6,6 @@
       ref="target"
       class="flex justify-center lg:w-6/12 lg:inset-y-1/8 --> md:fixed md:right-1/4 right-0.5 sm:w-fill sm:h-fill transition-all duration-500 p-5 border ring ring-purple-200 rounded-md border-purple-700 bg-seasalt m-2"
     >
-      <!-- lg:w-6/12 lg:inset-y-1/3 -->
       <div class="justify-self-center w-full">
         <div>
           <div class="flex flex-row align-end justify-between mb-2">
@@ -17,7 +16,6 @@
               </p>
             </div>
           </div>
-          <!---->
           <div
             v-if="locationItem.image"
             class="flex justify-center align-middle mb-3"
@@ -41,6 +39,33 @@
             <component :is="selectedTypeDetails" :locationItem="locationItem" />
           </ExpantionPanel>
         </div>
+        <div class="mt-3 flex flex-col justify-between px-16">
+          <ExpantionPanel :panel-name="'חוות דעת'">
+            <!-- <div class=""> -->
+            <Reviews
+              v-if="locationItem.reviews"
+              :reviews="locationItem.reviews"
+            />
+            <div class="p-2" dir="rtl" v-if="displayAddReview">
+              <label for="תגובה" />
+              <textarea
+                name="review"
+                placeholder="הוסף תגובה"
+                v-model="review.review"
+                class="w-full rounded-md p-2 ring-2 ring-citrine-100 border border-1 border-purple-200"
+              ></textarea>
+              <Button type="primary" @onClick="handleAdd">הוסף תגובה</Button>
+            </div>
+            <div v-else class="mt-2">
+              <Button
+                type="primary"
+                @onClick="displayAddReview = !displayAddReview"
+                >הוסף תגובה</Button
+              >
+            </div>
+            <!-- </div> -->
+          </ExpantionPanel>
+        </div>
         <div class="mt-3 flex justify-between px-16">
           <Rating
             :value="rating"
@@ -50,26 +75,13 @@
           />
           <FileInput @file-upload="handleFileUpload" />
         </div>
-        <div class="mt-3 flex justify-between px-16">
-          <ExpantionPanel :panel-name="'חוות דעת'">
-            <Reviews
-              v-if="locationItem.reviews"
-              :reviews="locationItem.reviews"
-            />
-            <div class="mt-3 flex justify-end px-16" dir="rtl">
-              <label for="תגובה">הוסף תגובה</label>
-              <textarea
-                name="review"
-                v-model="review"
-                @blur="addReview"
-                class="mr-10 w-full rounded-md ring-2 ring-citrine-100 border border-1 border-purple-200"
-              ></textarea>
-            </div>
-          </ExpantionPanel>
-        </div>
-        <div class="mt-3 flex justify-between px-16">
+        <!-- <div class="mt-3 flex justify-between px-16">
           <Button type="small">Share</Button>
           <Button type="small">Open issue</Button>
+        </div> -->
+        <div class="mt-3 flex justify-between px-16">
+          <Button type="primary" @onClick="handleSubmit">Update</Button>
+          <Button type="primary">Close</Button>
         </div>
       </div>
     </div>
@@ -78,7 +90,6 @@
 
 <script setup>
 import { watch, toRaw, computed } from "vue";
-import { useDataStore } from "../store";
 import Reviews from "./ui/Reviews.vue";
 import ExpantionPanel from "./ui/ExpantionPanel.vue";
 import DogGardenDetails from "./DogGardenDetails.vue";
@@ -90,6 +101,7 @@ import FileInput from "./ui/FileInput.vue";
 import Rating from "./ui/Rating.vue";
 
 import { onClickOutside } from "@vueuse/core";
+import { useUpdatePlayground } from "../hooks/useUpdatePlayground";
 
 const emit = defineEmits(["close"]);
 const target = ref(null);
@@ -99,12 +111,16 @@ onClickOutside(target, (event) => {
   closeDetails();
 });
 
-const store = useDataStore();
 const maxRating = ref(5);
-const review = ref("");
+const review = ref({
+  review: "",
+  dateAdded: new Date(),
+});
 
 const props = defineProps(["locationItem", "type"]);
 const { locationItem, type } = props;
+
+const displayAddReview = ref(false);
 
 const selectedTypeDetails = computed(() => {
   if (type === "playground") return PlaygroundDetails;
@@ -113,29 +129,58 @@ const selectedTypeDetails = computed(() => {
 });
 
 const rating = ref(locationItem.rating / locationItem.totalRates);
-watch(rating, (val) => {
-  // console.log(val);
-  store.updateRating(toRaw(locationItem), val);
-});
 
-function addReview(e) {
-  const dateAdded = new Date();
-  const review = {
-    review: e.target.value,
-    dateAdded: dateAdded,
-  };
-  // console.log("review", review);
-  e.preventDefault();
-  store.addReview(toRaw(locationItem), review);
+const imageRef = ref(null);
+function handleFileUpload(image) {
+  imageRef.value = image;
+  console.log("imageRef.current", imageRef.value);
 }
 
-function handleFileUpload(image) {
-  // console.log(image, locationItem.id);
-  store.uploadPhoto(toRaw(locationItem), image);
+function handleAdd() {}
+
+const { updatePlayground, isUpdating } = useUpdatePlayground();
+function handleSubmit() {
+  console.log("elocationItem", locationItem);
+  const item = toRaw(locationItem);
+  console.log(
+    "item, ",
+    item,
+    imageRef,
+    item.rating + rating.value,
+    rating.value,
+    review.value
+  );
+  const ratingVal = item.rating + rating.value;
+  console.log("ratingVal", ratingVal);
+  let payload = {
+    playgarden: item,
+  };
+  if (imageRef.value) payload = { ...payload, image: imageRef.value };
+  console.log("payload after image ", payload);
+  if (review.value) {
+    console.log("review !", review.value);
+
+    payload = {
+      ...payload,
+      review: toRaw(review.value),
+    };
+  }
+  console.log("payload after review ", payload);
+
+  if (rating.value) {
+    console.log("rating! ", rating.value, ratingVal);
+    payload = {
+      ...payload,
+      rating: ratingVal,
+      totalRates: item.totalRates + 1,
+    };
+  }
+  console.log("payload : ", payload);
+  updatePlayground(payload);
+  closeDetails();
 }
 
 function closeDetails() {
-  // console.log("close details");
   emit("close");
 }
 </script>
