@@ -25,7 +25,7 @@ import { toRaw } from "vue";
 import LocationDetails from "./LocationDetails.vue";
 import { useRoute } from "vue-router";
 const route = useRoute();
-const selectedRadius = ref(route.query.radius || 3);
+const selectedRadius = ref(route.query.radius || 8);
 const currentLocation = ref({});
 const initialMap = ref(null);
 
@@ -36,6 +36,42 @@ const props = defineProps([
   "dataDogGardens",
   "dataBikeParkings",
 ]);
+
+const dataPlaygroundsRef = ref(props.dataPlaygrounds);
+const dataDogGardensRef = ref(props.dataDogGardens);
+const dataBikeParkingsRef = ref(props.dataBikeParkings);
+
+function filterByRadius() {
+  console.log("filter currentLocation", currentLocation.value);
+  const location = L.latLng(
+    currentLocation.value.lat,
+    currentLocation.value.lon
+  );
+
+  console.log("filterByRadius   location", location);
+  dataPlaygroundsRef.value = props.dataPlaygrounds.filter((point) => {
+    return (
+      location.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
+      selectedRadius.value * 1000
+    );
+  });
+  dataDogGardensRef.value = props.dataDogGardens.filter((point) => {
+    return (
+      location.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
+      selectedRadius.value * 1000
+    );
+  });
+  dataBikeParkingsRef.value = props.dataBikeParkings.filter((point) => {
+    return (
+      location.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
+      selectedRadius.value * 1000
+    );
+  });
+
+  // console.log("dataPlaygroundsRef.value", dataPlaygroundsRef.value);
+  // console.log("dataDogGardensRef.value", dataDogGardensRef.value);
+  // console.log("dataBikeParkingsRef.value", dataBikeParkingsRef.value);
+}
 
 const visibleLayers = ref({
   dogParks: false,
@@ -77,7 +113,8 @@ const handleCloseDetails = () => {
 };
 
 const updateLayer = (layer, data, type) => {
-  // layer.clearLayers();
+  // console.log(" updateLayer = (layer, data, type) ", layer, data, type);
+  layer.clearLayers();
   data.forEach((point) => {
     const marker = createMarker(point, type).addTo(layer);
     marker.on("popupopen", () => {
@@ -87,9 +124,21 @@ const updateLayer = (layer, data, type) => {
     });
     return marker;
   });
+  // layer.clearLayers();
 };
 
-watch(route, (newVal, oldVal) => {
+watch(route, () => {
+  if (selectedRadius.value !== route.query.radius) {
+    // console.log("playgroundsLayer", playgroundsLayer.value);
+    filterByRadius();
+
+    // console.log("lllllllllllll");
+    // console.log("dataPlaygroundsRef.value", dataPlaygroundsRef.value);
+    // console.log("dataDogGardensRef.value", dataDogGardensRef.value);
+    // console.log("dataBikeParkingsRef.value", dataBikeParkingsRef.value);
+  }
+  selectedRadius.value = route.query.radius;
+
   const routeQuery = route.query.layer;
   routeQuery.forEach((layer) => {
     visibleLayers.value[layer] = true;
@@ -101,18 +150,20 @@ watch(route, (newVal, oldVal) => {
   }
 
   for (const layer in visibleLayers.value) {
-    let mapLayer =
+    const mapLayer =
       layer === "playgrounds"
         ? playgroundsLayer.value
         : layer === "dogParks"
           ? dogParksLayer.value
           : bikeParkingsLayer.value;
-    let data =
+    const data =
       layer === "playgrounds"
-        ? props.dataPlaygrounds
+        ? filteredPlaygroundsData()
         : layer === "dogParks"
-          ? props.dataDogGardens
-          : props.dataBikeParkings;
+          ? filteredDogGardensData() // dataDogGardensRef.value
+          : filteredBikeParkingsData(); //dataBikeParkingsRef.value;
+
+    // console.log("data", data);
 
     updateLayer(mapLayer, data, layer);
     updateVisibility(mapLayer, visibleLayers.value[layer]);
@@ -120,6 +171,7 @@ watch(route, (newVal, oldVal) => {
 });
 
 onMounted(() => {
+  console.log("nounted");
   initialMap.value = L.map("map").locate({
     setView: true,
     maxZoom: 16,
@@ -130,29 +182,40 @@ onMounted(() => {
     attribution:
       '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   }).addTo(initialMap.value);
-
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(function (position) {
-      currentLocation.lat = position.coords.latitude;
-      currentLocation.lon = position.coords.longitude;
-
+      currentLocation.value.lat = position.coords.latitude;
+      currentLocation.value.lon = position.coords.longitude;
+      console.log("currentLocation", currentLocation.value);
       const myLocation = {
-        lat: currentLocation.lat,
-        lon: currentLocation.lon,
+        lat: position.coords.latitude,
+        lon: position.coords.longitude,
       };
       console.log("my location ", myLocation);
       emit("update-location", myLocation);
+
+      console.log("currentLocation in monted", currentLocation.value);
       const myLocationMarker = L.marker([
-        position.coords.latitude,
-        position.coords.longitude,
+        currentLocation.value.lat, //position.coords.latitude,
+        currentLocation.value.lon, //position.coords.longitude,
       ]).addTo(initialMap.value);
     });
   }
 
-  // updateLayer(playgroundsLayer.value, props.dataPlaygrounds, "playgrounds");
-  // updateLayer(dogParksLayer.value, props.dataDogGardens, "dogParks");
-  // updateLayer(bikeParkingsLayer.value, props.dataBikeParkings, "bikeParkings");
-  props.dataPlaygrounds.forEach((point) => {
+  const location = L.latLng(
+    currentLocation.value.lat,
+    currentLocation.value.lon
+  );
+  console.log("mounted ---- location ", location);
+  console.log("filteredPlaygroundsData", filteredPlaygroundsData.value);
+  dataPlaygroundsRef.value.forEach((point) => {
+    // .filter((point) => {
+    // return (
+    //   location.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
+    //   selectedRadius.value * 1000
+    // );
+    // });
+    // filteredPlaygroundsData.forEach((point) => {
     const marker = createMarker(point, "playgrounds", "מגרש משחקים").addTo(
       playgroundsLayer.value
     );
@@ -166,7 +229,7 @@ onMounted(() => {
   visibleLayers.value.playgrounds = true;
   updateVisibility(playgroundsLayer.value, visibleLayers.value.playgrounds);
 
-  props.dataDogGardens?.forEach((point) => {
+  dataDogGardensRef.value?.forEach((point) => {
     const marker = createMarker(point, "dogParks", "מגרש כלבים").addTo(
       dogParksLayer.value
     );
@@ -178,12 +241,11 @@ onMounted(() => {
     return marker;
   });
 
-  // console.log('route.query.layer.includes("dogParks")', route.query?.layer); //.includes("dogParks"))
   if (route.query?.layer?.includes("dogParks"))
     visibleLayers.value.dogParks = true;
   updateVisibility(dogParksLayer.value, visibleLayers.value.dogParks);
 
-  props.dataBikeParkings?.forEach((point) => {
+  dataBikeParkingsRef.value?.forEach((point) => {
     const marker = createMarker(point, "bikeParkings", "עגינת אופניים").addTo(
       bikeParkingsLayer.value
     );
@@ -197,6 +259,47 @@ onMounted(() => {
   updateVisibility(bikeParkingsLayer.value, visibleLayers.value.bikeParkings);
 });
 
+function filteredPlaygroundsData() {
+  console.log("filteredPlaygroundsData", currentLocation.value);
+  const location = L.latLng(
+    currentLocation.value.lat,
+    currentLocation.value.lon
+  );
+  return props.dataPlaygrounds.filter((point) => {
+    return (
+      location.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
+      selectedRadius.value * 1000
+    );
+  });
+}
+
+function filteredBikeParkingsData() {
+  console.log("filteredPlaygroundsData", currentLocation.value);
+  const location = L.latLng(
+    currentLocation.value.lat,
+    currentLocation.value.lon
+  );
+  return props.dataBikeParkings.filter((point) => {
+    return (
+      location.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
+      selectedRadius.value * 1000
+    );
+  });
+}
+
+function filteredDogGardensData() {
+  console.log("filteredPlaygroundsData", currentLocation.value);
+  const location = L.latLng(
+    currentLocation.value.lat,
+    currentLocation.value.lon
+  );
+  return props.dataDogGardens.filter((point) => {
+    return (
+      location.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
+      selectedRadius.value * 1000
+    );
+  });
+}
 function svgToDataUrl(svg) {
   const encoded = encodeURIComponent(svg)
     .replace(/'/g, "%27")

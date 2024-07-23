@@ -26,7 +26,7 @@ const router = useRouter();
 
 const currFilter = ref({
   layer: ["playgrounds"],
-  radius: 3,
+  radius: 8,
 });
 
 const updateFilter = (key, value) => {

@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col mx-3">
     <Filter />
-    <LeafletMap
+    <LeafletMap1
       v-if="allFetched"
       @update-location="handleUpdateLocation"
       :layers="layers"
@@ -16,7 +16,7 @@
 import { ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 
-import LeafletMap from "@/components/LeafletMap1.vue";
+import LeafletMap1 from "@/components/LeafletMap1.vue";
 import Filter from "@/components/ui/Filter.vue";
 import { supabase } from "../../supabase";
 
