@@ -1,9 +1,14 @@
 <template>
   <div>
     <input v-if="showInput" ref="file" @change="onFileChanged" type="file" />
-    <Button v-else type="small" @onClick="showInput = true">
-      Upload photo
-    </Button>
+    <!-- <Button v-else type="small" @onClick="handleClick"> -->
+    <!-- (e) => {
+      e.preventDefault();
+      showInput = true;
+    } -->
+    <!-- Upload photo
+    </Button> -->
+    <button @click="handleClick">Upload photo</button>
   </div>
 </template>
 
@@ -13,6 +18,12 @@ import Button from "@/components/ui/Button.vue";
 const file = ref(null);
 const showInput = ref(false);
 const emit = defineEmits(["file-upload"]);
+
+function handleClick(e) {
+  console.log(e);
+  e.preventDefault();
+  showInput.value = true;
+}
 
 function onFileChanged(event) {
   console.log("target", event);

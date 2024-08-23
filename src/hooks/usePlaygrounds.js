@@ -13,9 +13,10 @@ export function usePlaygrounds() {
   return { data, isFetched };
 }
 
-async function getPlaygrounds() {
+async function getPlaygrounds(id) {
   const { data, error, status } = await supabase
     .from("playgrounds")
+
     .select("*");
   if (error) {
     throw new Error(error.message);

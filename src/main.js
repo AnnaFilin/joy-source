@@ -9,6 +9,11 @@ import { createRouter, createWebHistory } from "vue-router";
 const routes = [
   { path: "/", component: () => import("./views/HomeN.vue") },
   { path: "/about", component: () => import("./views/About.vue") },
+  {
+    path: "/location/:type/:id",
+    name: "location",
+    component: () => import("./views/Location.vue"),
+  },
 ];
 
 const router = createRouter({
@@ -32,3 +37,5 @@ app.use(router);
 app.use(VueQueryPlugin, { queryClient });
 
 app.mount("#app");
+
+export { queryClient };

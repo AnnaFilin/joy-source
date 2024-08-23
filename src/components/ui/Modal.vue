@@ -11,27 +11,46 @@
   </div>
 </template>
 
-<script setup></script>
+<script setup>
+import { computed } from "vue";
+
+const props = defineProps(["details", "showDetails", "markerPosition"]);
+
+const modalStyle = computed(() => {
+  if (!props.markerPosition) return {};
+
+  return {
+    left: `${props.markerPosition.left}px`,
+    top: `${props.markerPosition.top}px`,
+    transform: "translate(-50%, -50%)",
+    position: "absolute",
+    zIndex: 900,
+  };
+});
+</script>
 
 <style scoped>
 .modal {
   display: block;
   position: fixed;
   z-index: 900;
-  left: 0;
-  top: 0;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   width: 100%;
   height: 100%;
   overflow: auto;
-  background-color: rgb(0, 0, 0);
+  /* background-color: rgb(0, 0, 0); */
   background-color: rgba(0, 0, 0, 0.4);
 }
 .modal-content {
   background-color: #fefefe;
-  margin: 15% auto;
+  /* margin: 15% auto; */
+  margin: auto;
   padding: 20px;
   border: 1px solid #888;
   width: 80%;
+  max-width: 600px;
 }
 .close {
   color: #aaa;

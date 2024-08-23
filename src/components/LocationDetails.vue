@@ -1,11 +1,13 @@
 <template>
+  <!-- fixed top-0 left-0  h-screen-->
   <div
-    class="fixed top-0 left-0 w-full h-screen bg-transparent backdrop-blur-sm z-50 transition-all duration-500"
+    class="w-full bg-transparent backdrop-blur-sm z-50 transition-all duration-500"
   >
     <div
       ref="target"
-      class="flex justify-center lg:w-6/12 lg:inset-y-1/8 --> md:fixed md:right-1/4 right-0.5 sm:w-fill sm:h-fill transition-all duration-500 p-5 border ring ring-purple-200 rounded-md border-purple-700 bg-seasalt m-2"
+      class="flex justify-center lg:w-6/12 lg:inset-y-1/8 w-fill md:right-1/4 right-0.5 sm:w-fill sm:h-fill transition-all duration-500 p-5 border ring ring-purple-200 rounded-md details-popup border-purple-700 bg-seasalt m-2"
     >
+      <!-- lg:w-6/12 lg:inset-y-1/8 md:fixed md:right-1/4 right-0.5 sm:w-fill sm:h-fill -->
       <div class="justify-self-center w-full">
         <div>
           <div class="flex flex-row align-end justify-between mb-2">
@@ -34,12 +36,12 @@
             </p>
           </div>
         </div>
-        <div class="mt-3 flex justify-between px-16">
+        <div class="mt-3 flex justify-between">
           <ExpantionPanel :panel-name="'סוגי מתקנים'">
             <component :is="selectedTypeDetails" :locationItem="locationItem" />
           </ExpantionPanel>
         </div>
-        <div class="mt-3 flex flex-col justify-between px-16">
+        <div class="mt-3 flex flex-col justify-between">
           <ExpantionPanel :panel-name="'חוות דעת'">
             <!-- <div class=""> -->
             <Reviews
@@ -66,7 +68,7 @@
             <!-- </div> -->
           </ExpantionPanel>
         </div>
-        <div class="mt-3 flex justify-between px-16">
+        <div class="mt-3 flex justify-between">
           <Rating
             :value="rating"
             :max-rating="maxRating"
@@ -79,7 +81,7 @@
           <Button type="small">Share</Button>
           <Button type="small">Open issue</Button>
         </div> -->
-        <div class="mt-3 flex justify-between px-16">
+        <div class="mt-3 flex justify-between">
           <Button type="primary" @onClick="handleSubmit">Update</Button>
           <Button type="primary">Close</Button>
         </div>
@@ -100,21 +102,24 @@ import FileInput from "./ui/FileInput.vue";
 
 import Rating from "./ui/Rating.vue";
 
-import { onClickOutside } from "@vueuse/core";
+// import { onClickOutside } from "@vueuse/core";
 import { useUpdatePlayground } from "../hooks/useUpdatePlayground";
 
-const emit = defineEmits(["close"]);
+const emit = defineEmits(["location-updated"]);
 const target = ref(null);
 
-onClickOutside(target, (event) => {
-  console.log(event);
-  closeDetails();
-});
+// onClickOutside(target, (event) => {
+//   closeDetails();
+// });
 
 const maxRating = ref(5);
 const review = ref({
   review: "",
   dateAdded: new Date(),
+});
+
+onMounted(() => {
+  console.log("mounted");
 });
 
 const props = defineProps(["locationItem", "type"]);
@@ -142,55 +147,71 @@ const { updatePlayground, isUpdating } = useUpdatePlayground();
 function handleSubmit() {
   console.log("elocationItem", locationItem);
   const item = toRaw(locationItem);
-  console.log(
-    "item, ",
-    item,
-    imageRef,
-    item.rating + rating.value,
-    rating.value,
-    review.value
-  );
+  // console.log(
+  //   "item, ",
+  //   item,
+  //   imageRef,
+  //   item.rating + rating.value,
+  //   rating.value,
+  //   review.value
+  // );
   const ratingVal = item.rating + rating.value;
-  console.log("ratingVal", ratingVal);
+  // console.log("ratingVal", ratingVal);
   let payload = {
     playgarden: item,
   };
   if (imageRef.value) payload = { ...payload, image: imageRef.value };
   console.log("payload after image ", payload);
   if (review.value) {
-    console.log("review !", review.value);
-
+    // console.log("review !", review.value);
     payload = {
       ...payload,
       review: toRaw(review.value),
     };
   }
-  console.log("payload after review ", payload);
-
+  // console.log("payload after review ", payload);
   if (rating.value) {
-    console.log("rating! ", rating.value, ratingVal);
+    // console.log("rating! ", rating.value, ratingVal);
     payload = {
       ...payload,
       rating: ratingVal,
       totalRates: item.totalRates + 1,
     };
   }
-  console.log("payload : ", payload);
-  updatePlayground(payload);
-  closeDetails();
-}
+  // console.log("payload : ", payload);
+  try {
+    updatePlayground(
+      {
+        playgarden: payload.playgarden,
+        review: payload.review,
+        rating: payload.rating,
+        totalRates: payload.totalRates,
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({
+            queryKey: ["playgrounds"],
+          });
+        },
+      }
+    );
+  } catch (e) {
+    // console.log("Failed to update location", error);
+  }
 
-function closeDetails() {
-  emit("close");
+  emit("location-updated");
 }
 </script>
 
 <style scoped>
 .details-popup {
-  position: absolute;
-  background: white;
+  /* position: relative;
+  background: white; */
   padding: 1rem;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  /* box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); */
   /* Other styles */
+  /* position: fixed; **Centered within the viewport** */
+  /* top: 10%;
+  left: 20%; */
 }
 </style>

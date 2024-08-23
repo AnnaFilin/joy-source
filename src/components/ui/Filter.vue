@@ -9,11 +9,11 @@
     <Button type="primary" @onClick="updateFilter('type', 'bikeParkings')">
       Bicycle parking</Button
     >
-    <div class="flex flex-col justify-between gap-1">
-      <Button type="small" @onClick="updateFilter('radius', 1)"> 1 km </Button>
-      <Button type="small" @onClick="updateFilter('radius', 3)"> 3 km</Button>
-      <Button type="small" @onClick="updateFilter('radius', 8)"> 8 km</Button>
-    </div>
+  </div>
+  <div class="flex justify-center gap-1">
+    <Button type="small" @onClick="updateFilter('radius', 1)"> 1 km </Button>
+    <Button type="small" @onClick="updateFilter('radius', 3)"> 3 km</Button>
+    <Button type="small" @onClick="updateFilter('radius', 8)"> 8 km</Button>
   </div>
 </template>
 

@@ -5,12 +5,6 @@
       class="z-20 rounded-sm ring ring-citrine-100 border border-1 border-citrine-700 w-screen h-full"
       style="height: 90vh"
     ></div>
-    <LocationDetails
-      v-if="showDetails"
-      :location-item="details"
-      :type="locationType"
-      @close="handleCloseDetails"
-    />
   </div>
 </template>
 
@@ -23,8 +17,14 @@ import * as L from "leaflet";
 import { toRaw } from "vue";
 
 import LocationDetails from "./LocationDetails.vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+import { VueQueryPlugin } from "@tanstack/vue-query";
+import { queryClient } from "../main.js"; // Import queryClient from main.js
+
 const route = useRoute();
+const router = useRouter();
+console.log("router : ", router);
+
 const selectedRadius = ref(route.query.radius || 8);
 const currentLocation = ref({});
 const initialMap = ref(null);
@@ -67,10 +67,6 @@ function filterByRadius() {
       selectedRadius.value * 1000
     );
   });
-
-  // console.log("dataPlaygroundsRef.value", dataPlaygroundsRef.value);
-  // console.log("dataDogGardensRef.value", dataDogGardensRef.value);
-  // console.log("dataBikeParkingsRef.value", dataBikeParkingsRef.value);
 }
 
 const visibleLayers = ref({
@@ -102,40 +98,18 @@ const openDetails = (item, type) => {
   showDetails.value = true;
 };
 
-const handleCloseDetails = () => {
-  // console.log("close details");
-  showDetails.value = false;
-  details.value = null;
-  // console.log("showDetails.value", showDetails.value);
-  // if (marker.value) {
-  //   marker.value.closePopup();
-  // }
-};
-
 const updateLayer = (layer, data, type) => {
-  // console.log(" updateLayer = (layer, data, type) ", layer, data, type);
   layer.clearLayers();
   data.forEach((point) => {
     const marker = createMarker(point, type).addTo(layer);
-    marker.on("popupopen", () => {
-      document
-        .querySelector(`.details-button[data-id="${point.id}"]`)
-        .addEventListener("click", () => openDetails(point, type));
-    });
+
     return marker;
   });
-  // layer.clearLayers();
 };
 
 watch(route, () => {
   if (selectedRadius.value !== route.query.radius) {
-    // console.log("playgroundsLayer", playgroundsLayer.value);
     filterByRadius();
-
-    // console.log("lllllllllllll");
-    // console.log("dataPlaygroundsRef.value", dataPlaygroundsRef.value);
-    // console.log("dataDogGardensRef.value", dataDogGardensRef.value);
-    // console.log("dataBikeParkingsRef.value", dataBikeParkingsRef.value);
   }
   selectedRadius.value = route.query.radius;
 
@@ -160,10 +134,8 @@ watch(route, () => {
       layer === "playgrounds"
         ? filteredPlaygroundsData()
         : layer === "dogParks"
-          ? filteredDogGardensData() // dataDogGardensRef.value
-          : filteredBikeParkingsData(); //dataBikeParkingsRef.value;
-
-    // console.log("data", data);
+          ? filteredDogGardensData()
+          : filteredBikeParkingsData();
 
     updateLayer(mapLayer, data, layer);
     updateVisibility(mapLayer, visibleLayers.value[layer]);
@@ -171,7 +143,7 @@ watch(route, () => {
 });
 
 onMounted(() => {
-  console.log("nounted");
+  // console.log("nounted");
   initialMap.value = L.map("map").locate({
     setView: true,
     maxZoom: 16,
@@ -186,13 +158,10 @@ onMounted(() => {
     navigator.geolocation.getCurrentPosition(function (position) {
       currentLocation.value.lat = position.coords.latitude;
       currentLocation.value.lon = position.coords.longitude;
-      console.log("currentLocation", currentLocation.value);
       const myLocation = {
         lat: position.coords.latitude,
         lon: position.coords.longitude,
       };
-      console.log("my location ", myLocation);
-      emit("update-location", myLocation);
 
       console.log("currentLocation in monted", currentLocation.value);
       const myLocationMarker = L.marker([
@@ -208,55 +177,30 @@ onMounted(() => {
   );
   console.log("mounted ---- location ", location);
   console.log("filteredPlaygroundsData", filteredPlaygroundsData.value);
-  dataPlaygroundsRef.value.forEach((point) => {
-    // .filter((point) => {
-    // return (
-    //   location.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
-    //   selectedRadius.value * 1000
-    // );
-    // });
-    // filteredPlaygroundsData.forEach((point) => {
-    const marker = createMarker(point, "playgrounds", "מגרש משחקים").addTo(
-      playgroundsLayer.value
-    );
-    marker.on("popupopen", () => {
-      document
-        .querySelector(`.details-button[data-id="${point.id}"]`)
-        .addEventListener("click", () => openDetails(point, "playground"));
-    });
-    return marker;
-  });
-  visibleLayers.value.playgrounds = true;
-  updateVisibility(playgroundsLayer.value, visibleLayers.value.playgrounds);
 
-  dataDogGardensRef.value?.forEach((point) => {
-    const marker = createMarker(point, "dogParks", "מגרש כלבים").addTo(
-      dogParksLayer.value
-    );
-    marker.on("popupopen", () => {
-      document
-        .querySelector(`.details-button[data-id="${point.id}"]`)
-        .addEventListener("click", () => openDetails(point, "dogPark"));
-    });
-    return marker;
-  });
+  watch(
+    () => [props.dataPlaygrounds, props.dataDogGardens, props.dataBikeParkings],
+    ([newPlaygrounds, newDogGardens, newBikeParkings]) => {
+      initialMap.value.eachLayer((layer) => {
+        if (layer instanceof L.Marker) {
+          initialMap.value.removeLayer(layer);
+        }
+      });
 
-  if (route.query?.layer?.includes("dogParks"))
-    visibleLayers.value.dogParks = true;
-  updateVisibility(dogParksLayer.value, visibleLayers.value.dogParks);
+      newPlaygrounds.forEach((point) => {
+        createMarker(point, "playgrounds").addTo(playgroundsLayer.value);
+      });
 
-  dataBikeParkingsRef.value?.forEach((point) => {
-    const marker = createMarker(point, "bikeParkings", "עגינת אופניים").addTo(
-      bikeParkingsLayer.value
-    );
-    marker.on("popupopen", () => {
-      document
-        .querySelector(`.details-button[data-id="${point.id}"]`)
-        .addEventListener("click", () => openDetails(point, "bikeParking"));
-    });
-    return marker;
-  });
-  updateVisibility(bikeParkingsLayer.value, visibleLayers.value.bikeParkings);
+      newDogGardens.forEach((point) => {
+        createMarker(point, "dogGardens").addTo(dogParksLayer.value);
+      });
+
+      newBikeParkings.forEach((point) => {
+        createMarker(point, "bikeParkings").addTo(bikeParkingsLayer.value);
+      });
+    },
+    { immediate: true }
+  );
 });
 
 function filteredPlaygroundsData() {
@@ -309,6 +253,7 @@ function svgToDataUrl(svg) {
 // // https://data.gov.il/api/3/action/datastore_search
 
 function createMarker(el, type) {
+  console.log("el :", el, type);
   let markerOptions = {
     clickable: true,
     draggable: false,
@@ -320,26 +265,91 @@ function createMarker(el, type) {
   };
   const tooltipKey = "name";
   if (type === "dogParks") {
-    iconOptions.iconUrl = "/dog.png";
+    iconOptions.iconUrl = "/dogs.svg";
     iconOptions.iconSize = [20, 20];
   }
   if (type === "playgrounds") {
     iconOptions.iconSize = [25, 20];
-    //vectr.com/editor/57ef0934-2acc-4a5c-b5df-393e2ae2b071
     iconOptions.className = " text-purple-500";
-    iconOptions.iconUrl = "/playgarden.jpg";
-    // https://api.geoapify.com/v1/icon/?type=material&color=%23f38f39&icon=child&iconType=awesome&apiKey=YOUR_API_KEY
+    iconOptions.iconUrl = "/playgrounds.svg"; //"/playgarden.jpg";
   }
   if (type === "bikeParkings") {
-    iconOptions.iconUrl = "/bicycle.jpeg";
+    iconOptions.iconUrl = "/bicycle.svg"; //"/bicycle.jpeg";
     iconOptions.iconSize = [20, 20];
   }
 
   const customIcon = L.icon(iconOptions);
   markerOptions.icon = customIcon;
-  return L.marker([toRaw(el).lat, toRaw(el).lon], markerOptions).bindPopup(
-    `<b>${type}</b><br>Name: ${toRaw(el)[tooltipKey]}<br>  <button class="details-button text-sm bg-seasalt p-2 border border-purple-300 rounded-md text-purple-500" data-id="${el.id}">More Details</button>`
-  );
+
+  // Create a div element to hold the Vue component
+  // const popupContent = document.createElement("div");
+  // popupContent.className = "custom-popup";
+
+  const marker = L.marker([toRaw(el).lat, toRaw(el).lon], markerOptions); //.bindPopup(popupContent, { maxWidth: "auto" });
+  // Function to create and mount the Vue instance
+  // const mountPopupContent = () => {
+  //   const app = createApp({
+  //     render: () =>
+  //       h(LocationDetails, {
+  //         locationItem: el,
+  //         type: type,
+  //         onLocationUpdated: async () => {
+  //           await handleLocationUpdated(marker); // Wait for the update and refetch to complete
+  //         },
+  //       }),
+  //   });
+  //   app.use(VueQueryPlugin, { queryClient });
+  //   app.mount(popupContent);
+
+  //   marker.__vue_app__ = app; // Store the Vue instance for later unmounting
+  // };
+  marker.on("click", () => {
+    console.log("in mmm ", `/location/${type}/${el.id}`);
+    // router.push(
+    //   {
+    //     name: "location",
+    //     params: { type: type, id: el.id },
+    //   }
+    //   // `/${type}/${el.id}`
+    //   // props: { id: el.id, type: type },
+    // );
+    router.push(
+      `/location/${type}/${el.id}`
+      // {
+      //   name: "location",
+      //   params: { type: type, id: el.id },
+      // }
+      // `/${type}/${el.id}`
+      // props: { id: el.id, type: type },
+    );
+  });
+
+  // marker.on("popupopen", () => {
+  //   // Clear the previous content
+  //   popupContent.innerHTML = "";
+
+  //   // Mount the Vue instance
+  //   mountPopupContent();
+  // });
+
+  // marker.on("popupclose", () => {
+  //   // Unmount the Vue instance
+  //   if (marker.__vue_app__) {
+  //     marker.__vue_app__.unmount();
+  //     marker.__vue_app__ = null;
+  //   }
+  // });
+
+  return marker;
+}
+function handleLocationUpdated(marker) {
+  return new Promise((resolve) => {
+    // Close the popup
+    marker.closePopup();
+
+    emit("update-location");
+    resolve();
+  });
 }
 </script>
 
@@ -348,6 +358,36 @@ function createMarker(el, type) {
   height: 100vh;
   width: 100%;
   overflow: hidden;
+}
+
+.leaflet-popup-content {
+  width: auto !important;
+}
+.custom-popup {
+  width: 90vw; /* 90% of viewport width */
+  max-width: 600px; /* Maximum width */
+  height: auto;
+  max-height: 90vh; /* Maximum height */
+  padding: 1rem;
+  overflow-y: auto; /* Scroll if content overflows */
+}
+
+@media (min-width: 640px) {
+  .custom-popup {
+    width: 80vw;
+  }
+}
+
+@media (min-width: 768px) {
+  .custom-popup {
+    width: 60vw;
+  }
+}
+
+@media (min-width: 1024px) {
+  .custom-popup {
+    width: 40vw;
+  }
 }
 
 .close {
