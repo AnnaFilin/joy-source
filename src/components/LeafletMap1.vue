@@ -201,6 +201,25 @@ onMounted(() => {
     },
     { immediate: true }
   );
+
+  initialMap.value.on("click", function (e) {
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+
+    fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`
+    )
+      .then((response) => response.json())
+      .then((data) => {
+        const address = data.display_name;
+        console.log("Address:", address);
+        L.popup()
+          .setLatLng([lat, lng])
+          .setContent(`Address: ${address}`)
+          .openOn(initialMap.value);
+      })
+      .catch((error) => console.error("Error:", error));
+  });
 });
 
 function filteredPlaygroundsData() {
