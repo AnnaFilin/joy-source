@@ -19,13 +19,13 @@
 
 <script setup>
 import Button from "@/components/ui/Button.vue";
-import { useRouter, useRoute } from "vue-router";
+import { useRouter } from "vue-router";
 import { ref } from "vue";
 
 const router = useRouter();
 
 const currFilter = ref({
-  layer: ["playgrounds"],
+  layer: [],
   radius: 8,
 });
 
@@ -41,8 +41,6 @@ const updateFilter = (key, value) => {
   }
 
   const query = currFilter.value;
-  console.log("query : ", query);
-
   router.push({ path: "/", query });
 };
 </script>

@@ -1,6 +1,6 @@
 <template>
   <div>
-    <p>About</p>
+    <p class="text-xl">About</p>
   </div>
 </template>
 

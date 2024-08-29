@@ -1,20 +1,23 @@
 <template>
   <div class="flex flex-col mx-3">
     <Filter />
-    <LeafletMap1
-      v-if="allFetched"
-      @update-location="handleUpdateLocation"
-      :layers="layers"
-      :dataPlaygrounds="dataPlaygrounds"
-      :dataDogGardens="dataDogGardens"
-      :dataBikeParkings="dataBikeParkings"
-    />
+    <keep-alive>
+      <LeafletMap1
+        v-if="allFetched"
+        @update-location="handleUpdateLocation"
+        :layers="layers"
+        :dataPlaygrounds="dataPlaygrounds"
+        :dataDogGardens="dataDogGardens"
+        :dataBikeParkings="dataBikeParkings"
+      />
+    </keep-alive>
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
+import emitter from "../utils/eventBus";
 
 import LeafletMap1 from "@/components/LeafletMap1.vue";
 import Filter from "@/components/ui/Filter.vue";
@@ -53,7 +56,13 @@ const { data: dataBikeParkings, isFetched: isFetchedBikeParkings } = useQuery({
 });
 const layers = "playgrounds";
 
-const allFetched = ref(false);
+const allFetched = computed(() => {
+  return (
+    isFetchedPlaygrounds.value &&
+    isFetchedDogGardens.value &&
+    isFetchedBikeParkings.value
+  );
+});
 
 watch(
   [isFetchedPlaygrounds, isFetchedDogGardens, isFetchedBikeParkings],
@@ -64,10 +73,18 @@ watch(
       isFetchedBikeParkings.value;
   }
 );
-
+onMounted(() => {
+  emitter.on("locationUpdated", (data) => {
+    // console.log("Location updated with data:", data);
+    // Handle the data or update your component
+    handleUpdateLocation(data);
+  });
+});
+// Handle the data or update your component
 // Handle the event from LeafletMap1 and invalidate queries
-function handleUpdateLocation() {
-  console.log("home - update location");
+function handleUpdateLocation(data) {
+  // console.log("home - update location", data);
+  queryClient.refetchQueries(["playground", data.id]);
   queryClient.invalidateQueries(["playgrounds", "dogGardens", "bikeParkings"]);
 }
 </script>

@@ -9,27 +9,24 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, reactive, computed } from "vue";
-import "leaflet.locatecontrol"; // Import plugin
-import "leaflet.locatecontrol/dist/L.Control.Locate.min.css"; // Import style
+import { ref, onMounted, onBeforeUnmount, watch } from "vue";
+import "leaflet.locatecontrol";
+import "leaflet.locatecontrol/dist/L.Control.Locate.min.css";
 import "leaflet/dist/leaflet.css";
 import * as L from "leaflet";
-import { toRaw } from "vue";
-
-import LocationDetails from "./LocationDetails.vue";
 import { useRoute, useRouter } from "vue-router";
-import { VueQueryPlugin } from "@tanstack/vue-query";
-import { queryClient } from "../main.js"; // Import queryClient from main.js
+import { createMarker } from "../utils/helpers.js";
 
 const route = useRoute();
 const router = useRouter();
-console.log("router : ", router);
 
 const selectedRadius = ref(route.query.radius || 8);
 const currentLocation = ref({});
 const initialMap = ref(null);
+const playgroundsLayer = ref(L.featureGroup());
+const dogParksLayer = ref(L.featureGroup());
+const bikeParkingsLayer = ref(L.featureGroup());
 
-const emit = defineEmits(["update-location"]);
 const props = defineProps([
   "layers",
   "dataPlaygrounds",
@@ -37,113 +34,61 @@ const props = defineProps([
   "dataBikeParkings",
 ]);
 
-const dataPlaygroundsRef = ref(props.dataPlaygrounds);
-const dataDogGardensRef = ref(props.dataDogGardens);
-const dataBikeParkingsRef = ref(props.dataBikeParkings);
-
-function filterByRadius() {
-  console.log("filter currentLocation", currentLocation.value);
-  const location = L.latLng(
-    currentLocation.value.lat,
-    currentLocation.value.lon
-  );
-
-  console.log("filterByRadius   location", location);
-  dataPlaygroundsRef.value = props.dataPlaygrounds.filter((point) => {
-    return (
-      location.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
-      selectedRadius.value * 1000
-    );
-  });
-  dataDogGardensRef.value = props.dataDogGardens.filter((point) => {
-    return (
-      location.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
-      selectedRadius.value * 1000
-    );
-  });
-  dataBikeParkingsRef.value = props.dataBikeParkings.filter((point) => {
-    return (
-      location.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
-      selectedRadius.value * 1000
-    );
-  });
-}
-
 const visibleLayers = ref({
-  dogParks: false,
   playgrounds: false,
+  dogParks: false,
   bikeParkings: false,
 });
 
-const updateVisibility = (layer, isVisible) => {
+// Update the visibility of layers based on the filters
+function updateVisibility(layer, isVisible) {
   if (isVisible) {
-    initialMap.value.addLayer(layer);
+    initialMap.value?.addLayer(layer);
   } else {
-    initialMap.value.removeLayer(layer);
+    initialMap.value?.removeLayer(layer);
   }
-};
+}
 
-const playgroundsLayer = ref(L.featureGroup());
-const dogParksLayer = ref(L.featureGroup());
-const bikeParkingsLayer = ref(L.featureGroup());
-
-const showDetails = ref(false);
-const details = ref({});
-const locationType = ref("");
-
-const openDetails = (item, type) => {
-  console.log("open", item, type);
-  details.value = toRaw(item);
-  locationType.value = type;
-  showDetails.value = true;
-};
-
-const updateLayer = (layer, data, type) => {
-  layer.clearLayers();
+// Function to update markers on the layer based on filters
+function updateLayer(layer, data, type) {
+  layer.clearLayers(); // Clear previous markers
   data.forEach((point) => {
-    const marker = createMarker(point, type).addTo(layer);
-
-    return marker;
+    const marker = createMarker(router, point, type).addTo(layer);
   });
-};
+}
 
-watch(route, () => {
-  if (selectedRadius.value !== route.query.radius) {
-    filterByRadius();
-  }
-  selectedRadius.value = route.query.radius;
+watch(
+  () => route.query.layer, // Watch for changes in the active layers from the route
+  () => {
+    // Determine which layers should be visible
+    visibleLayers.value.playgrounds =
+      route.query?.layer?.includes("playgrounds");
+    visibleLayers.value.dogParks = route.query?.layer?.includes("dogParks");
+    visibleLayers.value.bikeParkings =
+      route.query?.layer?.includes("bikeParkings");
 
-  const routeQuery = route.query.layer;
-  routeQuery.forEach((layer) => {
-    visibleLayers.value[layer] = true;
-  });
+    // Update visibility of each layer based on the active filters
+    updateVisibility(playgroundsLayer.value, visibleLayers.value.playgrounds);
+    updateVisibility(dogParksLayer.value, visibleLayers.value.dogParks);
+    updateVisibility(bikeParkingsLayer.value, visibleLayers.value.bikeParkings);
+  },
+  { immediate: true }
+);
 
-  for (const layer in visibleLayers.value) {
-    if (visibleLayers.value[layer] && !routeQuery.includes(layer))
-      visibleLayers.value[layer] = false;
-  }
-
-  for (const layer in visibleLayers.value) {
-    const mapLayer =
-      layer === "playgrounds"
-        ? playgroundsLayer.value
-        : layer === "dogParks"
-          ? dogParksLayer.value
-          : bikeParkingsLayer.value;
-    const data =
-      layer === "playgrounds"
-        ? filteredPlaygroundsData()
-        : layer === "dogParks"
-          ? filteredDogGardensData()
-          : filteredBikeParkingsData();
-
-    updateLayer(mapLayer, data, layer);
-    updateVisibility(mapLayer, visibleLayers.value[layer]);
+onMounted(() => {
+  if (!initialMap.value) {
+    initializeMap();
   }
 });
 
-onMounted(() => {
-  // console.log("nounted");
+onBeforeUnmount(() => {
+  if (initialMap.value) {
+    initialMap.value.remove(); // Properly remove the map instance on unmount
+    initialMap.value = null;
+  }
+});
+
+function initializeMap() {
   initialMap.value = L.map("map").locate({
     setView: true,
     maxZoom: 16,
@@ -163,211 +108,40 @@ onMounted(() => {
         lon: position.coords.longitude,
       };
 
-      console.log("currentLocation in monted", currentLocation.value);
+      // console.log("currentLocation in monted", currentLocation.value);
       const myLocationMarker = L.marker([
         currentLocation.value.lat, //position.coords.latitude,
         currentLocation.value.lon, //position.coords.longitude,
       ]).addTo(initialMap.value);
     });
   }
+  // Initially update layers
+  updateLayer(playgroundsLayer.value, props.dataPlaygrounds, "playgrounds");
+  updateLayer(dogParksLayer.value, props.dataDogGardens, "dogParks");
+  updateLayer(bikeParkingsLayer.value, props.dataBikeParkings, "bikeParkings");
 
-  const location = L.latLng(
-    currentLocation.value.lat,
-    currentLocation.value.lon
-  );
-  console.log("mounted ---- location ", location);
-  console.log("filteredPlaygroundsData", filteredPlaygroundsData.value);
-
-  watch(
-    () => [props.dataPlaygrounds, props.dataDogGardens, props.dataBikeParkings],
-    ([newPlaygrounds, newDogGardens, newBikeParkings]) => {
-      initialMap.value.eachLayer((layer) => {
-        if (layer instanceof L.Marker) {
-          initialMap.value.removeLayer(layer);
-        }
-      });
-
-      newPlaygrounds.forEach((point) => {
-        createMarker(point, "playgrounds").addTo(playgroundsLayer.value);
-      });
-
-      newDogGardens.forEach((point) => {
-        createMarker(point, "dogGardens").addTo(dogParksLayer.value);
-      });
-
-      newBikeParkings.forEach((point) => {
-        createMarker(point, "bikeParkings").addTo(bikeParkingsLayer.value);
-      });
-    },
-    { immediate: true }
-  );
-
-  initialMap.value.on("click", function (e) {
-    const lat = e.latlng.lat;
-    const lng = e.latlng.lng;
-
-    fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`
-    )
-      .then((response) => response.json())
-      .then((data) => {
-        const address = data.display_name;
-        console.log("Address:", address);
-        L.popup()
-          .setLatLng([lat, lng])
-          .setContent(`Address: ${address}`)
-          .openOn(initialMap.value);
-      })
-      .catch((error) => console.error("Error:", error));
-  });
-});
-
-function filteredPlaygroundsData() {
-  console.log("filteredPlaygroundsData", currentLocation.value);
-  const location = L.latLng(
-    currentLocation.value.lat,
-    currentLocation.value.lon
-  );
-  return props.dataPlaygrounds.filter((point) => {
-    return (
-      location.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
-      selectedRadius.value * 1000
-    );
-  });
+  // Set the initial visibility based on route query
+  updateVisibility(playgroundsLayer.value, visibleLayers.value.playgrounds);
+  updateVisibility(dogParksLayer.value, visibleLayers.value.dogParks);
+  updateVisibility(bikeParkingsLayer.value, visibleLayers.value.bikeParkings);
 }
 
-function filteredBikeParkingsData() {
-  console.log("filteredPlaygroundsData", currentLocation.value);
-  const location = L.latLng(
-    currentLocation.value.lat,
-    currentLocation.value.lon
-  );
-  return props.dataBikeParkings.filter((point) => {
-    return (
-      location.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
-      selectedRadius.value * 1000
-    );
-  });
-}
+function updateMapLayers() {
+  console.log("update layers ");
+  playgroundsLayer.value.clearLayers();
+  dogParksLayer.value.clearLayers();
+  bikeParkingsLayer.value.clearLayers();
 
-function filteredDogGardensData() {
-  console.log("filteredPlaygroundsData", currentLocation.value);
-  const location = L.latLng(
-    currentLocation.value.lat,
-    currentLocation.value.lon
-  );
-  return props.dataDogGardens.filter((point) => {
-    return (
-      location.distanceTo([toRaw(point).lat, toRaw(point).lon]) <=
-      selectedRadius.value * 1000
-    );
-  });
-}
-function svgToDataUrl(svg) {
-  const encoded = encodeURIComponent(svg)
-    .replace(/'/g, "%27")
-    .replace(/"/g, "%22");
-  return `data:image/svg+xml;charset=UTF-8,${encoded}`;
-}
-// // https://data.gov.il/api/3/action/datastore_search
-
-function createMarker(el, type) {
-  console.log("el :", el, type);
-  let markerOptions = {
-    clickable: true,
-    draggable: false,
-  };
-  let iconOptions = {
-    shadowSize: [20, 17],
-    iconAnchor: [10, 15],
-    iconUrl: "",
-  };
-  const tooltipKey = "name";
-  if (type === "dogParks") {
-    iconOptions.iconUrl = "/dogs.svg";
-    iconOptions.iconSize = [20, 20];
-  }
-  if (type === "playgrounds") {
-    iconOptions.iconSize = [25, 20];
-    iconOptions.className = " text-purple-500";
-    iconOptions.iconUrl = "/playgrounds.svg"; //"/playgarden.jpg";
-  }
-  if (type === "bikeParkings") {
-    iconOptions.iconUrl = "/bicycle.svg"; //"/bicycle.jpeg";
-    iconOptions.iconSize = [20, 20];
-  }
-
-  const customIcon = L.icon(iconOptions);
-  markerOptions.icon = customIcon;
-
-  // Create a div element to hold the Vue component
-  // const popupContent = document.createElement("div");
-  // popupContent.className = "custom-popup";
-
-  const marker = L.marker([toRaw(el).lat, toRaw(el).lon], markerOptions); //.bindPopup(popupContent, { maxWidth: "auto" });
-  // Function to create and mount the Vue instance
-  // const mountPopupContent = () => {
-  //   const app = createApp({
-  //     render: () =>
-  //       h(LocationDetails, {
-  //         locationItem: el,
-  //         type: type,
-  //         onLocationUpdated: async () => {
-  //           await handleLocationUpdated(marker); // Wait for the update and refetch to complete
-  //         },
-  //       }),
-  //   });
-  //   app.use(VueQueryPlugin, { queryClient });
-  //   app.mount(popupContent);
-
-  //   marker.__vue_app__ = app; // Store the Vue instance for later unmounting
-  // };
-  marker.on("click", () => {
-    console.log("in mmm ", `/location/${type}/${el.id}`);
-    // router.push(
-    //   {
-    //     name: "location",
-    //     params: { type: type, id: el.id },
-    //   }
-    //   // `/${type}/${el.id}`
-    //   // props: { id: el.id, type: type },
-    // );
-    router.push(
-      `/location/${type}/${el.id}`
-      // {
-      //   name: "location",
-      //   params: { type: type, id: el.id },
-      // }
-      // `/${type}/${el.id}`
-      // props: { id: el.id, type: type },
-    );
+  props.dataPlaygrounds.forEach((point) => {
+    createMarker(router, point, "playgrounds").addTo(playgroundsLayer.value);
   });
 
-  // marker.on("popupopen", () => {
-  //   // Clear the previous content
-  //   popupContent.innerHTML = "";
+  props.dataDogGardens.forEach((point) => {
+    createMarker(router, point, "dogGardens").addTo(dogParksLayer.value);
+  });
 
-  //   // Mount the Vue instance
-  //   mountPopupContent();
-  // });
-
-  // marker.on("popupclose", () => {
-  //   // Unmount the Vue instance
-  //   if (marker.__vue_app__) {
-  //     marker.__vue_app__.unmount();
-  //     marker.__vue_app__ = null;
-  //   }
-  // });
-
-  return marker;
-}
-function handleLocationUpdated(marker) {
-  return new Promise((resolve) => {
-    // Close the popup
-    marker.closePopup();
-
-    emit("update-location");
-    resolve();
+  props.dataBikeParkings.forEach((point) => {
+    createMarker(router, point, "bikeParkings").addTo(bikeParkingsLayer.value);
   });
 }
 </script>

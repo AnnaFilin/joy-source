@@ -1,58 +1,62 @@
 <template>
-  <div v-if="isFetched" class="flex flex-col mx-3">
+  <div class="flex flex-col mx-3">
     <p>{{ route.id }}</p>
-    <LocationDetails :location-item="playgroundData" :type="route.type" />
+    <LocationDetails
+      v-if="isFetched"
+      :location-item="playgroundData"
+      :type="route.type"
+      :address="address"
+    />
   </div>
-  <!-- v-if="isFetched"
-  :location-item="playgroundData"
-  :type="'playground'" -->
 </template>
 
 <script setup>
 import { useRoute } from "vue-router";
 import LocationDetails from "../components/LocationDetails.vue";
-import { onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { supabase } from "../../supabase";
-import { usePlayground } from "../hooks/usePlayground";
+import { fetchAddress } from "../utils/helpers";
 
-// defineProps({
-//   id: String,
-//   type: String,
-// });
-// function usePlayground() {
 const route = useRoute();
 const { id } = route.params;
-onMounted(() => {
-  console.log(route.params);
-  console.log("mounted");
-  //   fetchPlayground();
+const { lat, lng } = route.query;
+const address = ref("");
+
+onMounted(async () => {
+  //   console.log("onMounted - LOCATION", route.params, route.query);
+  address.value = await fetchAddress(lat, lng);
 });
 
-const { data: playgroundData, isFetched } = useQuery({
+const {
+  data: playgroundData,
+  isFetched,
+  refetch,
+} = useQuery({
   queryKey: ["playground", id],
   queryFn: () => fetchPlayground(id),
-  // keepPreviousData: true,
+  refetchOnWindowFocus: true,
+  cacheTime: 0,
+  staleTime: 0,
 });
-//   console.log("use playgroundg ", playgroundData, isFetched);
-//   const data = toRaw(playgroundsData);
-//   return { data, isFetched, error };
-// }
 
 const fetchPlayground = async (id) => {
-  console.log("id", id);
   const { data, error, status } = await supabase
     .from("playgrounds")
     .select("*")
     .eq("id", id);
-  console.log("data : ", data[0]);
   if (error) {
     throw new Error(error.message);
   }
   return data[0];
 };
 
-// const { data: dataPlayground, isFetched } = usePlayground(id);
+watch(
+  () => route.params.id,
+  async () => {
+    await refetch(); // Refetch data when the route changes
+  }
+);
 </script>
 
 <style lang="scss" scoped></style>

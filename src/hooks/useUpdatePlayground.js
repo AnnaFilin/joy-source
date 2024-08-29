@@ -1,56 +1,30 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
+import { useMutation, useQueryClient } from "@tanstack/vue-query";
 import { supabase, supabaseUrl } from "../../supabase";
-import { toRaw } from "vue";
 
-// export function useUpdatePlayground() {
-//   const queryClient = useQueryClient();
-
-//   const { mutate: updatePlayground, isPending: isUpdating } = useMutation({
-//     mutationFn: ({ playgarden, image, rating, review }) =>
-//       uploadPhoto(playgarden, image, rating, review),
-//     // onSuccess: () => {
-//     //   toast.success("Playground successfully updated");
-//     // },
-
-//     onSettled: () =>
-//       queryClient.invalidateQueries({ queryKey: ["playgrounds"] }),
-//     // mutationKey: ["addTodo"],
-//     // onError: (err) => toast.error(err.message),
-//   });
-
-//   return { updatePlayground, isUpdating };
-// }
 export function useUpdatePlayground() {
   const queryClient = useQueryClient();
 
   const { mutate: updatePlayground, isPending: isUpdating } = useMutation({
     mutationFn: ({ playgarden, image, rating, review }) =>
-      uploadPhoto(playgarden, image, rating, review), //updateTodo,
+      uploadPhoto(playgarden, image, rating, review),
     // When mutate is called:
     onMutate: async ({ playgarden }) => {
-      // onMutate: async (newTodo) => {
       console.log("playgarden", playgarden);
       // Cancel any outgoing refetches
       // (so they don't overwrite our optimistic update)
       await queryClient.cancelQueries({
         queryKey: ["playgrounds", playgarden.id],
       });
-      // await queryClient.cancelQueries({ queryKey: ['todos', newTodo.id] })
-
       // Snapshot the previous value
       const previousPlayground = queryClient.getQueryData([
         "playgrounds",
         playgarden.id,
       ]);
-      // const previousTodo = queryClient.getQueryData(['todos', newTodo.id])
 
       // Optimistically update to the new value
       queryClient.setQueryData(["playgrounds", playgarden.id], playgarden);
-      // queryClient.setQueryData(['todos', newTodo.id], newTodo)
 
-      // Return a context with the previous and new todo
       return { previousPlayground, playgarden };
-      // return { previousTodo, newTodo }
     },
     // If the mutation fails, use the context we returned above
     onError: (err, playgarden, context) => {
@@ -67,39 +41,22 @@ export function useUpdatePlayground() {
     },
   });
 
-  // const { mutate: updatePlayground, isPending: isUpdating } = useMutation({
-  //   mutationFn: ({ playgarden, image, rating, review }) =>
-  //     uploadPhoto(playgarden, image, rating, review),
-  //   // onSuccess: () => {
-  //   //   toast.success("Playground successfully updated");
-  //   // },
-
-  //   onSettled: () =>
-  //     queryClient.invalidateQueries({ queryKey: ["playgrounds"] }),
-  //   // mutationKey: ["addTodo"],
-  //   // onError: (err) => toast.error(err.message),
-  // });
-
   return { updatePlayground, isUpdating };
 }
 
 async function uploadPhoto(playgarden, image, rating, review) {
-  console.log("function upload photo", playgarden, image, rating, review);
   let itemReviews = playgarden.reviews ? playgarden.reviews : [];
-  console.log("hh");
   const hasImagePath = playgarden.image?.startWith?.(supabase) || false;
   let imageName;
   let imagePath;
   if (image) {
     imageName = `${Math.random()}-${image.name}`.replaceAll("/", "");
-    console.log("hdabj", hasImagePath);
     imagePath = hasImagePath
       ? playgarden.image
       : `${supabaseUrl}/storage/v1/object/public/playgroundsPictures/${imageName}`;
     console.log("imagePath", imagePath);
   }
 
-  console.log("here", imagePath);
   if (rating) {
     var ratingVal = rating;
   }
@@ -115,7 +72,6 @@ async function uploadPhoto(playgarden, image, rating, review) {
       })
       .eq("id", playgarden.id)
       .select();
-    console.log("data", data);
     if (error) throw new Error("Playground could not be updated");
 
     if (image) {

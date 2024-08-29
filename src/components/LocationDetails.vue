@@ -1,22 +1,26 @@
 <template>
-  <!-- fixed top-0 left-0  h-screen-->
-  <!-- <div
-    class="w-full bg-transparent backdrop-blur-sm z-50 transition-all duration-500"
-  > -->
   <div
     ref="target"
     class="flex justify-center lg:w-6/12 lg:mx-auto w-fill md:right-1/4 right-0.5 sm:w-fill sm:h-fill transition-all duration-500 p-5 border ring ring-purple-200 rounded-md details-popup border-purple-700 bg-seasalt m-2"
   >
-    <!-- lg:w-6/12 lg:inset-y-1/8 md:fixed md:right-1/4 right-0.5 sm:w-fill sm:h-fill -->
     <div class="justify-self-center w-full">
       <div>
         <div class="flex flex-row align-end justify-between mb-2">
-          <Button type="round" @onClick="$emit('close')"> &times; </Button>
+          <router-link
+            class="text-purple-700 font-bold text-xl hover:text-citrine"
+            to="/"
+            >&larr;</router-link
+          >
           <div class="flex justify-end">
             <p class="text-purple-500 text-xl font-bold mb-0">
               {{ locationItem.name }}
             </p>
           </div>
+        </div>
+        <div>
+          <p class="text-purple-500 text-lg font-semibold mb-2">
+            {{ address }}
+          </p>
         </div>
         <div
           v-if="locationItem.image"
@@ -43,7 +47,6 @@
       </div>
       <div class="mt-3 flex flex-col justify-between">
         <ExpantionPanel :panel-name="'חוות דעת'">
-          <!-- <div class=""> -->
           <Reviews
             v-if="locationItem.reviews"
             :reviews="locationItem.reviews"
@@ -65,7 +68,6 @@
               >הוסף תגובה</Button
             >
           </div>
-          <!-- </div> -->
         </ExpantionPanel>
       </div>
       <div class="mt-3 flex justify-between">
@@ -87,11 +89,10 @@
       </div>
     </div>
   </div>
-  <!-- </div> -->
 </template>
 
 <script setup>
-import { watch, toRaw, computed } from "vue";
+import { toRaw, computed } from "vue";
 import Reviews from "./ui/Reviews.vue";
 import ExpantionPanel from "./ui/ExpantionPanel.vue";
 import DogGardenDetails from "./DogGardenDetails.vue";
@@ -101,6 +102,12 @@ import Button from "./ui/Button.vue";
 import FileInput from "./ui/FileInput.vue";
 import Rating from "./ui/Rating.vue";
 import { useUpdatePlayground } from "../hooks/useUpdatePlayground";
+import { useRouter } from "vue-router";
+import emitter from "../utils/eventBus";
+import { useQueryClient } from "@tanstack/vue-query";
+
+const queryClient = useQueryClient();
+const router = useRouter();
 
 const emit = defineEmits(["location-updated"]);
 const target = ref(null);
@@ -111,11 +118,7 @@ const review = ref({
   dateAdded: new Date(),
 });
 
-onMounted(() => {
-  console.log("mounted");
-});
-
-const props = defineProps(["locationItem", "type"]);
+const props = defineProps(["locationItem", "type", "address"]);
 const { locationItem, type } = props;
 
 const displayAddReview = ref(false);
@@ -131,47 +134,33 @@ const rating = ref(locationItem.rating / locationItem.totalRates);
 const imageRef = ref(null);
 function handleFileUpload(image) {
   imageRef.value = image;
-  console.log("imageRef.current", imageRef.value);
 }
 
 function handleAdd() {}
 
 const { updatePlayground, isUpdating } = useUpdatePlayground();
 function handleSubmit() {
-  console.log("elocationItem", locationItem);
   const item = toRaw(locationItem);
-  // console.log(
-  //   "item, ",
-  //   item,
-  //   imageRef,
-  //   item.rating + rating.value,
-  //   rating.value,
-  //   review.value
-  // );
+
+  //FIX BUG HERE___ only if rating updated I should update and add it -> the same for total rates
   const ratingVal = item.rating + rating.value;
-  // console.log("ratingVal", ratingVal);
   let payload = {
     playgarden: item,
   };
   if (imageRef.value) payload = { ...payload, image: imageRef.value };
-  console.log("payload after image ", payload);
   if (review.value) {
-    // console.log("review !", review.value);
     payload = {
       ...payload,
       review: toRaw(review.value),
     };
   }
-  // console.log("payload after review ", payload);
   if (rating.value) {
-    // console.log("rating! ", rating.value, ratingVal);
     payload = {
       ...payload,
       rating: ratingVal,
       totalRates: item.totalRates + 1,
     };
   }
-  // console.log("payload : ", payload);
   try {
     updatePlayground(
       {
@@ -182,29 +171,27 @@ function handleSubmit() {
       },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({
-            queryKey: ["playgrounds"],
-          });
+          // Invalidate queries to refetch the latest data
+          queryClient.invalidateQueries(["playgrounds"]);
+          queryClient.invalidateQueries(["playground", item.id]); // Invalidate specific location data
+          queryClient.invalidateQueries(["dogGardens"]);
+          queryClient.invalidateQueries(["bikeParkings"]);
+        },
+        onSettled: () => {
+          queryClient.refetchQueries(["playground", item.id]); // Ensure the query is refetched
+          emitter.emit("location-updated");
+          router.go(-1);
         },
       }
     );
   } catch (e) {
-    // console.log("Failed to update location", error);
+    console.log("Failed to update location", error);
   }
-
-  emit("location-updated");
 }
 </script>
 
 <style scoped>
 .details-popup {
-  /* position: relative;
-  background: white; */
   padding: 1rem;
-  /* box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); */
-  /* Other styles */
-  /* position: fixed; **Centered within the viewport** */
-  /* top: 10%;
-  left: 20%; */
 }
 </style>
